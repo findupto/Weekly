@@ -1,0 +1,6 @@
+{
+  "appId": "pk.mkpizza.pos",
+  "appName": "MK Pizza POS",
+  "webDir": "public",
+  "server": { "androidScheme": "https" }
+}
