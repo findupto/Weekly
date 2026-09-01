@@ -1,10 +1,19 @@
 {
-  "name": "weekly-pos",
-  "version": "1.0.0",
+  "name": "mk-pizza-pos",
+  "version": "2.0.0",
   "private": true,
-  "description": "Simple POS system with a mobile-ready REST API",
-  "main": "server.js",
-  "scripts": { "start": "node server.js", "dev": "node server.js" },
+  "description": "MK Pizza & Ice Bar role-based POS with web, mobile and Windows clients",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "desktop": "electron .",
+    "dist:win": "electron-builder --win",
+    "mobile:sync": "npx cap sync",
+    "mobile:android": "npx cap open android"
+  },
   "engines": { "node": ">=18" },
-  "dependencies": { "express": "^4.21.2", "cors": "^2.8.5" }
+  "dependencies": { "cors": "^2.8.5", "express": "^4.21.2", "jsonwebtoken": "^9.0.2" },
+  "devDependencies": { "@capacitor/cli": "^7.4.3", "@capacitor/core": "^7.4.3", "@capacitor/android": "^7.4.3", "electron": "^38.1.0", "electron-builder": "^26.0.12" },
+  "build": { "appId": "pk.mkpizza.pos", "productName": "MK Pizza POS", "files": ["**/*", "!node_modules/.cache/**"], "win": { "target": ["nsis", "portable"] }, "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true } }
 }
