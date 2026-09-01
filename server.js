@@ -1,95 +1,20 @@
-const express = require('express');
-const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.POS_API_KEY || 'change-me';
-const DATA_FILE = path.join(__dirname, 'data.json');
-
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-function load() {
-  if (!fs.existsSync(DATA_FILE)) {
-    const initial = {
-      products: [
-        { id: 'p1', name: 'Milk 1L', sku: 'MILK-1L', price: 280, stock: 50, category: 'Dairy' },
-        { id: 'p2', name: 'Bread', sku: 'BREAD', price: 150, stock: 35, category: 'Bakery' },
-        { id: 'p3', name: 'Eggs 12 Pack', sku: 'EGGS-12', price: 360, stock: 25, category: 'Dairy' },
-        { id: 'p4', name: 'Cooking Oil 1L', sku: 'OIL-1L', price: 590, stock: 20, category: 'Grocery' }
-      ],
-      orders: [],
-      settings: { currency: 'PKR', storeName: 'Weekly POS' }
-    };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-}
-function save(db) { fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2)); }
-function auth(req, res, next) {
-  if (req.path === '/api/health' || req.method === 'GET' && req.path === '/api/products') return next();
-  if (req.headers['x-api-key'] !== API_KEY) return res.status(401).json({ error: 'Invalid API key' });
-  next();
-}
-
-app.use('/api', auth);
-app.get('/api/health', (req, res) => res.json({ ok: true, service: 'weekly-pos', time: new Date().toISOString() }));
-app.get('/api/products', (req, res) => {
-  const db = load();
-  const q = String(req.query.q || '').toLowerCase();
-  res.json(db.products.filter(p => !q || `${p.name} ${p.sku} ${p.category}`.toLowerCase().includes(q)));
-});
-app.post('/api/products', (req, res) => {
-  const db = load();
-  const { name, sku, price, stock = 0, category = 'General' } = req.body;
-  if (!name || !sku || Number(price) < 0) return res.status(400).json({ error: 'name, sku and valid price are required' });
-  if (db.products.some(p => p.sku === sku)) return res.status(409).json({ error: 'SKU already exists' });
-  const product = { id: crypto.randomUUID(), name, sku, price: Number(price), stock: Number(stock), category };
-  db.products.push(product); save(db); res.status(201).json(product);
-});
-app.patch('/api/products/:id', (req, res) => {
-  const db = load(); const p = db.products.find(x => x.id === req.params.id);
-  if (!p) return res.status(404).json({ error: 'Product not found' });
-  Object.assign(p, req.body);
-  if (p.price != null) p.price = Number(p.price);
-  if (p.stock != null) p.stock = Number(p.stock);
-  save(db); res.json(p);
-});
-app.get('/api/orders', (req, res) => {
-  const db = load(); res.json(db.orders.slice().reverse());
-});
-app.post('/api/orders', (req, res) => {
-  const db = load();
-  const { items, paymentMethod = 'cash', customer = null, discount = 0 } = req.body;
-  if (!Array.isArray(items) || !items.length) return res.status(400).json({ error: 'Order items are required' });
-  const normalized = [];
-  let subtotal = 0;
-  for (const item of items) {
-    const p = db.products.find(x => x.id === item.productId);
-    const qty = Number(item.qty);
-    if (!p || !Number.isInteger(qty) || qty < 1) return res.status(400).json({ error: 'Invalid product or quantity' });
-    if (p.stock < qty) return res.status(409).json({ error: `Insufficient stock for ${p.name}` });
-    const lineTotal = p.price * qty; subtotal += lineTotal;
-    normalized.push({ productId: p.id, name: p.name, sku: p.sku, qty, price: p.price, total: lineTotal });
-  }
-  const safeDiscount = Math.max(0, Number(discount) || 0);
-  const total = Math.max(0, subtotal - safeDiscount);
-  normalized.forEach(i => { db.products.find(p => p.id === i.productId).stock -= i.qty; });
-  const order = { id: crypto.randomUUID(), number: `W-${Date.now()}`, items: normalized, subtotal, discount: safeDiscount, total, paymentMethod, customer, status: 'paid', createdAt: new Date().toISOString() };
-  db.orders.push(order); save(db); res.status(201).json(order);
-});
-app.get('/api/dashboard', (req, res) => {
-  const db = load(); const today = new Date().toISOString().slice(0, 10);
-  const orders = db.orders.filter(o => o.createdAt.startsWith(today));
-  res.json({ salesToday: orders.reduce((s, o) => s + o.total, 0), ordersToday: orders.length, products: db.products.length, lowStock: db.products.filter(p => p.stock <= 5).length });
-});
-app.get('/api/settings', (req, res) => res.json(load().settings));
-app.put('/api/settings', (req, res) => { const db = load(); db.settings = { ...db.settings, ...req.body }; save(db); res.json(db.settings); });
-
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.listen(PORT, () => console.log(`Weekly POS running on http://localhost:${PORT}`));
+const express=require('express');const cors=require('cors');const fs=require('fs');const path=require('path');const crypto=require('crypto');const jwt=require('jsonwebtoken');
+const app=express();const PORT=process.env.PORT||3000;const JWT_SECRET=process.env.JWT_SECRET||'mk-pizza-change-this-secret';const DATA=path.join(__dirname,'data.json');
+app.use(cors());app.use(express.json());app.use(express.static(path.join(__dirname,'public')));
+const initial=()=>({company:{name:'MK Pizza & Ice Bar',address:'Abbas Chowk Collage Road Bhakkar',phone:'0316 9700025',tax:0,currency:'Rs'},users:[{id:'u-admin',name:'Administrator',username:'admin',password:'admin123',role:'admin'},{id:'u-waiter',name:'Waiter',username:'waiter',password:'waiter123',role:'waiter'},{id:'u-kitchen',name:'Kitchen',username:'kitchen',password:'kitchen123',role:'kitchen'},{id:'u-cashier',name:'Cashier',username:'cashier',password:'cashier123',role:'cashier'}],products:[{id:'p1',name:'Chicken Pizza',sku:'PIZ-001',price:850,stock:100,category:'Pizza',active:true},{id:'p2',name:'Cheese Pizza',sku:'PIZ-002',price:750,stock:100,category:'Pizza',active:true},{id:'p3',name:'Zinger Burger',sku:'BRG-001',price:450,stock:100,category:'Burgers',active:true},{id:'p4',name:'Fries',sku:'FRY-001',price:220,stock:100,category:'Fast Food',active:true},{id:'p5',name:'Cold Drink',sku:'DRK-001',price:120,stock:100,category:'Drinks',active:true}],orders:[],sessions:[]});
+function db(){if(!fs.existsSync(DATA))fs.writeFileSync(DATA,JSON.stringify(initial(),null,2));return JSON.parse(fs.readFileSync(DATA,'utf8'))}function save(x){fs.writeFileSync(DATA,JSON.stringify(x,null,2))}
+function auth(req,res,next){const h=req.headers.authorization||'';try{req.user=jwt.verify(h.replace('Bearer ',''),JWT_SECRET);next()}catch{return res.status(401).json({error:'Login required'})}}function roles(...r){return(req,res,next)=>r.includes(req.user.role)?next():res.status(403).json({error:'Permission denied'})}
+app.get('/api/health',(q,s)=>s.json({ok:true,company:'MK Pizza & Ice Bar'}));
+app.get('/api/company',(q,s)=>s.json(db().company));
+app.post('/api/login',(req,res)=>{const d=db(),u=d.users.find(x=>x.username===req.body.username&&x.password===req.body.password);if(!u)return res.status(401).json({error:'Invalid username or password'});const token=jwt.sign({id:u.id,name:u.name,role:u.role},JWT_SECRET,{expiresIn:'12h'});res.json({token,user:{id:u.id,name:u.name,role:u.role},company:d.company})});
+app.get('/api/me',auth,(q,s)=>s.json(q.user));
+app.get('/api/products',(req,res)=>{const d=db(),q=String(req.query.q||'').toLowerCase();res.json(d.products.filter(p=>p.active!==false&&(!q||`${p.name} ${p.sku} ${p.category}`.toLowerCase().includes(q))))});
+app.post('/api/products',auth,roles('admin'),(req,res)=>{const d=db(),{name,sku,price,stock=0,category='General'}=req.body;if(!name||!sku||Number(price)<0)return res.status(400).json({error:'Invalid product'});if(d.products.some(p=>p.sku===sku))return res.status(409).json({error:'SKU exists'});const p={id:crypto.randomUUID(),name,sku,price:Number(price),stock:Number(stock),category,active:true};d.products.push(p);save(d);res.status(201).json(p)});
+function makeOrder(d,body,user,status){if(!Array.isArray(body.items)||!body.items.length)throw Error('Order items required');const items=[];let subtotal=0;for(const i of body.items){const p=d.products.find(x=>x.id===i.productId&&x.active!==false);const qty=Number(i.qty);if(!p||!Number.isInteger(qty)||qty<1)throw Error('Invalid item');if(p.stock<qty)throw Error(`Insufficient stock: ${p.name}`);items.push({productId:p.id,name:p.name,qty,price:p.price,total:p.price*qty});subtotal+=p.price*qty}const tax=Number(d.company.tax)||0;const total=Math.max(0,subtotal+tax);const o={id:crypto.randomUUID(),number:`MK-${Date.now()}`,items,subtotal,tax,total,paymentMethod:body.paymentMethod||'cash',customer:body.customer||null,table:body.table||null,orderType:body.orderType||'dine-in',note:body.note||'',createdBy:user?user.id:'online',createdAt:new Date().toISOString(),status,history:[{status,by:user?user.name:'Online Customer',at:new Date().toISOString()}]};if(status!=='pending'){items.forEach(i=>d.products.find(p=>p.id===i.productId).stock-=i.qty)}return o}
+app.post('/api/orders',auth,roles('waiter','admin'),(req,res)=>{try{const d=db(),o=makeOrder(d,req.body,req.user,'awaiting_authorization');d.orders.push(o);save(d);res.status(201).json(o)}catch(e){res.status(400).json({error:e.message})}});
+app.post('/api/online/orders',(req,res)=>{try{const d=db(),o=makeOrder(d,req.body,null,'pending');d.orders.push(o);save(d);res.status(201).json({orderNumber:o.number,status:o.status})}catch(e){res.status(400).json({error:e.message})}});
+app.get('/api/orders',auth,(req,res)=>{const d=db();let os=d.orders;if(req.user.role==='waiter')os=os.filter(o=>o.createdBy===req.user.id||o.status==='pending');res.json(os.slice().reverse())});
+app.post('/api/orders/:id/status',auth,roles('admin','kitchen','cashier'),(req,res)=>{const d=db(),o=d.orders.find(x=>x.id===req.params.id);if(!o)return res.status(404).json({error:'Order not found'});const next=req.body.status;const allowed={admin:['authorized','cancelled','sent_to_kitchen'],kitchen:['preparing','ready'],cashier:['paid','closed']}[req.user.role]||[];if(!allowed.includes(next))return res.status(403).json({error:'Invalid status for your role'});if(req.user.role==='admin'&&next==='authorized'){if(!o.items.every(i=>{const p=d.products.find(x=>x.id===i.productId);return p&&p.stock>=i.qty}))return res.status(409).json({error:'Insufficient stock'});o.items.forEach(i=>d.products.find(p=>p.id===i.productId).stock-=i.qty)}o.status=next;o.history.push({status:next,by:req.user.name,at:new Date().toISOString()});save(d);res.json(o)});
+app.get('/api/dashboard',auth,roles('admin','cashier'),(req,res)=>{const d=db(),today=new Date().toISOString().slice(0,10),os=d.orders.filter(o=>o.createdAt.startsWith(today));res.json({salesToday:os.filter(o=>['paid','closed'].includes(o.status)).reduce((s,o)=>s+o.total,0),ordersToday:os.length,pending:os.filter(o=>['awaiting_authorization','pending'].includes(o.status)).length,kitchen:os.filter(o=>['sent_to_kitchen','preparing'].includes(o.status)).length,ready:os.filter(o=>o.status==='ready').length,products:d.products.length,lowStock:d.products.filter(p=>p.stock<=5).length})});
+app.get('/api/settings',auth,roles('admin'),(q,s)=>s.json(db().company));app.put('/api/settings',auth,roles('admin'),(req,res)=>{const d=db();d.company={...d.company,...req.body};save(d);res.json(d.company)});
+app.get('*',(req,res)=>res.sendFile(path.join(__dirname,'public','index.html')));app.listen(PORT,()=>console.log(`MK Pizza POS on ${PORT}`));
