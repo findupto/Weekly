@@ -1,50 +1,38 @@
-# Weekly POS
+# MK Pizza & Ice Bar POS
 
-A lightweight retail POS with a responsive cashier interface and a REST API designed for Android/iOS/mobile apps.
+Role-based POS for **MK Pizza & Ice Bar**, Abbas Chowk Collage Road Bhakkar, 0316 9700025. Currency: **Rs**. Tax: **0** by default.
 
-## Run
+## Staff controls
+- **Admin:** authorizes waiter/online orders, sends tickets to kitchen, manages products/settings and monitors sales.
+- **Waiter:** creates dine-in, takeaway and delivery orders; cannot send directly to kitchen.
+- **Kitchen:** sees authorized kitchen tickets, starts making and marks orders ready.
+- **Cashier:** sees ready orders, collects payment and closes orders.
+- **Online customer:** places orders through the public online-order API; orders enter `pending` and require Admin authorization.
 
+Workflow: **Waiter / Online → Admin Authorization → Kitchen → Preparing → Ready → Cashier Payment → Closed**.
+
+## Default accounts
+Change these before production:
+- admin / admin123
+- waiter / waiter123
+- kitchen / kitchen123
+- cashier / cashier123
+
+## Web POS
 ```bash
 npm install
-POS_API_KEY=your-secret-key npm start
+npm start
 ```
-
 Open `http://localhost:3000`.
 
-The app stores data in `data.json` so it can run without a database for an initial deployment. For production, move the same API contract to PostgreSQL/MySQL and add proper user authentication.
+## Windows EXE
+`npm run dist:win` builds an installable Windows NSIS installer and a portable Windows executable. GitHub Actions also builds these artifacts.
 
-## Mobile app connection
+## Android APK
+Capacitor configuration is included. The GitHub Actions workflow builds an Android APK artifact. For real online ordering, deploy the server behind HTTPS and configure the mobile client to use the public server URL.
 
-The mobile app can use the same server URL. Send the API key in `x-api-key` for protected operations.
+## Online ordering API
+`POST /api/online/orders` accepts items, customer, table, order type, payment method and note. It creates a `pending` order for Admin review.
 
-- `GET /api/health` — health check
-- `GET /api/products?q=milk` — product catalog (public read)
-- `POST /api/products` — create product
-- `PATCH /api/products/:id` — update product/stock
-- `GET /api/orders` — recent orders
-- `POST /api/orders` — create/complete sale
-- `GET /api/dashboard` — dashboard totals
-- `GET /api/settings` — store settings
-- `PUT /api/settings` — update settings
-
-### Create sale
-
-```http
-POST /api/orders
-x-api-key: your-secret-key
-Content-Type: application/json
-
-{
-  "items": [{ "productId": "p1", "qty": 2 }],
-  "paymentMethod": "cash",
-  "customer": { "name": "Walk-in" }
-}
-```
-
-The server validates stock, calculates totals from server-side prices, deducts inventory, and returns the completed order. This keeps the mobile client from being the source of truth for prices or stock.
-
-## Suggested mobile architecture
-
-`Mobile App → HTTPS REST API → POS Server → Database`
-
-For deployment, set `POS_API_KEY` to a strong secret, put the API behind HTTPS, and replace the simple API-key authentication with per-user JWT/session authentication when multiple staff accounts are needed.
+## Production
+Set a strong `JWT_SECRET`, use HTTPS, replace default staff passwords, and move persistence from `data.json` to PostgreSQL/MySQL before a multi-device production deployment.
