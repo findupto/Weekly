@@ -1,84 +1,111 @@
 # MK Pizza & Ice Bar POS
 
-Complete restaurant POS/control center for **MK Pizza & Ice Bar**, Abbas Chowk Collage Road Bhakkar, **0316 9700025**. Currency: **Rs**. Tax: **0** by default.
+Restaurant-wide POS/control center for **MK Pizza & Ice Bar**, Abbas Chowk Collage Road Bhakkar, **0316 9700025**. Currency: **Rs**. Tax: **0** by default.
 
-## Modules
-- **Menu / Products:** add, edit, deactivate/delete, search, variants, select-all, bulk actions, CSV download/upload.
-- **Combos / Deals:** combo price plus component items. Components are retained in the sales ledger so an owner can analyze the underlying items sold through deals.
-- **Sales:** dine-in, takeaway, delivery, online and waiter orders with complete status history.
-- **Riders:** rider records and delivery assignment support.
-- **Staff:** role-based accounts.
-- **Expenses / Accounts:** operational expense and account records.
-- **Customers / Suppliers:** master records for repeat customers, vendors and purchasing.
-- **Demands:** purchase/request records with quantity and unit; useful for weekly purchasing analysis.
-- **Purchases:** purchase receipt increases stock and records supplier/cost.
-- **Inventory:** stock adjustments and movement history.
-- **Production/Yield:** raw-material input, usable output, processing loss and loss percentage.
-- **Analytics:** separate item/variant sales ledger and demand summaries.
+## Complete operating modules
+- Menu/products, categories, SKUs, units and variants
+- Select-all, bulk delete/deactivate, CSV upload and CSV download
+- Combos/deals with component-item tracking
+- Recipes/BOM for automatic ingredient consumption
+- Orders: dine-in, takeaway, delivery, waiter and online
+- Kitchen display workflow and order history
+- Riders and delivery workflow
+- Staff and role permissions
+- Customers and suppliers
+- Demands and demand analysis
+- Purchasing and stock receiving
+- Inventory and stock movement history
+- Production/yield and processing loss
+- Wastage records
+- Expenses and accounts
+- Item/variant sales analytics
+- Audit trail
+- Company settings
 
-## Exact item tracking
-Every sellable variant has its own ledger key. Examples:
-- Pizza: Small, Medium, Large, XL
-- Shawarma: Small, Medium, Large
-- Burger: Special, Chicken, Zinger
-- Biryani: Half, Full
-- Ice Cream: 1 Scoop, 2 Scoops
-- Tea, Coffee, Shakes and other standard products
+## Item-level tracking
+The sales ledger is designed to distinguish variants such as:
 
-When a combo/deal is sold, the order keeps the combo sale and its component list. When the order becomes **Paid/Closed**, both the sale and component quantities can be reported separately.
+- Pizza: Small / Medium / Large / XL
+- Shawarma: Small / Medium / Large
+- Burger: Special / Chicken / Zinger
+- Biryani: Half / Full
+- Ice Cream: 1 Scoop / 2 Scoops
+- Tea / Coffee / Shakes and every future variant
 
-## Raw material processing example
-If you buy **100 kg meat** and processing produces **70 kg usable meat**, record a production yield:
-- Input = 100 kg
-- Usable output = 70 kg
-- Processing loss = 30 kg
-- Loss rate = 30%
+A combo/deal remains visible as the customer-facing sale while its component quantities can be recorded separately for demand, stock and analytics.
 
-For costing, use the usable 70 kg as the processed-material output and keep the 30 kg loss visible instead of hiding it. A production recipe/BOM can later consume the processed meat against pizzas, burgers, shawarma, etc.
+## Automatic restaurant flow
+`Customer / Waiter → Admin Authorization → Kitchen → Preparing → Ready → Cashier → Paid → Closed`
 
-## Order workflow and permissions
-**Customer/Waiter → Pending → Admin authorization → Kitchen → Preparing → Ready → Cashier payment → Closed.**
+Authorization is the control point. Stock/recipe consumption and the sales ledger are tied to the order lifecycle so the same sale does not need to be entered again in inventory or reports.
 
-- **Admin:** full control; authorizes orders, manages menu, combos, staff, riders, customers, suppliers, purchasing, demands, expenses, accounts, inventory, settings and analytics.
-- **Waiter:** creates orders and views own orders; cannot authorize/send directly to kitchen.
-- **Kitchen:** only sees kitchen work and can start/complete preparation.
-- **Cashier:** handles ready orders, payment and closing; no menu or admin controls.
-- **Customer:** public online ordering only; no POS administration access.
-- **Rider:** should receive only assigned delivery/customer/order information; no sales, inventory or staff access.
+## Meat/production yield
+Example:
+
+`100 kg raw meat → 70 kg usable meat + 30 kg processing loss`
+
+Record input, output, loss and yield percentage. The processed output can then be used as an inventory item consumed by recipes. This keeps purchasing, production, wastage and recipe costing traceable.
+
+## Roles
+**Admin:** full control and approvals.
+
+**Waiter:** create orders and view permitted orders; cannot authorize kitchen release.
+
+**Kitchen:** kitchen queue, start preparation, mark ready; no accounts or menu administration.
+
+**Cashier:** ready orders, payment and closing; no admin configuration.
+
+**Rider:** assigned deliveries and delivery status only.
+
+**Customer:** public online ordering and order status only.
+
+Server-side authorization is the security boundary; mobile UI restrictions are not relied upon for security.
+
+## Online ordering
+A public customer page is available at `/order.html` after the server is deployed. It loads the live menu and submits orders to `POST /api/online/orders`, where they enter the pending/admin-authorization queue.
 
 ## Mobile APK architecture
-The APK is a client, not the database. Recommended production setup:
+The APK should be a role-specific client connected to the same central API:
 
 `Customer APK / Waiter APK / Kitchen APK / Rider APK → HTTPS API → Central POS Server + Database`
 
-Each mobile login receives a role-based JWT. The server enforces permissions, so hiding a button in the APK is not the security boundary. The same API can also serve the Windows POS and web ordering site.
+Recommended permissions:
 
-### Suggested APK screens
-- **Customer:** menu, variants, cart, address, order, order status, order history.
-- **Waiter:** tables, menu, variants, cart, submit order, own-order status.
-- **Kitchen:** incoming tickets, queue, start, ready, notes.
-- **Rider:** assigned deliveries, customer address/phone, picked-up, delivered.
-- **Admin/Cashier:** use the full POS/web/Windows control center rather than giving every mobile user admin access.
+- **Customer:** browse menu, select variants, cart, address/contact, place order, track own order.
+- **Waiter:** tables, menu, variants, create/submit orders, see own order status.
+- **Kitchen:** assigned kitchen tickets, preparation status and notes.
+- **Rider:** assigned delivery, customer delivery information, picked-up/delivered status.
 
-## API highlights
-- `POST /api/online/orders` — public online order intake
-- `POST /api/orders` — waiter/admin order creation
-- `POST /api/orders/:id/status` — controlled workflow transitions
-- `/api/products` — menu/product CRUD and bulk import/export
-- `/api/combos` — combo/deal management
-- `/api/riders`, `/api/users`, `/api/customers`, `/api/suppliers`
-- `/api/demands`, `/api/purchases`, `/api/purchases/receive`
-- `/api/expenses`, `/api/accounts`
-- `/api/analytics/items`, `/api/analytics/sales`, `/api/analytics/demands`, `/api/analytics/yield`
-- `/api/production/yield` — raw-to-usable material conversion
+Each user authenticates to the API and receives a role-limited token. The Windows POS and APKs can therefore operate on the same live restaurant data.
 
-## Build
+## Important production architecture
+The current repository keeps a JSON data store for easy setup and demonstration. For a real multi-device restaurant deployment, use **PostgreSQL/MySQL with database transactions and row locking**. This is important when several waiters, kitchen devices, cashier and online customers operate simultaneously.
+
+Also configure:
+- HTTPS
+- strong `JWT_SECRET`
+- hashed passwords
+- automated backups
+- database transaction/locking
+- device/session management
+- audit retention
+- printer/payment integrations as required
+
+## Run
 ```bash
 npm install
 npm start
 ```
-Windows installer/portable EXE: `npm run dist:win`.
-Android build is provided through Capacitor/GitHub Actions.
+Windows installer/portable EXE:
+```bash
+npm run dist:win
+```
+Android/Capacitor build is included in the project configuration and CI workflow.
 
-## Production security
-Set a strong `JWT_SECRET`, use HTTPS, change all default passwords, hash passwords instead of storing plaintext, add database transactions/locking, and use PostgreSQL/MySQL for multi-device production. The included JSON persistence is a development/small-installation data store, not the final recommended production database.
+## Default demo users
+- admin / admin123
+- waiter / waiter123
+- kitchen / kitchen123
+- cashier / cashier123
+
+Change these credentials before production.
