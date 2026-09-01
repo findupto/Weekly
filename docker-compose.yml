@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mkpos
+      POSTGRES_USER: mkpos
+      POSTGRES_PASSWORD: change-this-password
+    volumes:
+      - mkpos_pg:/var/lib/postgresql/data
+    networks: [private]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mkpos -d mkpos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pos:
+    build: .
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://mkpos:change-this-password@postgres:5432/mkpos
+      JWT_SECRET: change-this-to-a-long-random-secret
+      CORS_ORIGINS: https://pos.example.com
+      TRUST_PROXY: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [private]
+
+volumes:
+  mkpos_pg:
+
+networks:
+  private:
+    driver: bridge
